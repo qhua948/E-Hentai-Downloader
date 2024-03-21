@@ -569,7 +569,12 @@ function generateZip(isFromFS, fs, isRetry, forced){
 		if (setting['save-info'] === 'file' || !setting['save-info']) {
 			(dirName && !ehDownloadRegex.slashOnly.test(dirName) ? zip.folder(dirName) : zip).file('info.txt', infoStr.replace(/\n/gi, '\r\n'));
 		} else if (setting['save-info'] === 'eze-json') {
-			(dirName && !ehDownloadRegex.slashOnly.test(dirName) ? zip.folder(dirName) : zip).file('info.json', JSON.stringify({'gallery_info': metadata}));
+			let output_json = {'gallery_info': metadata};
+			output_json['gallery_info_full'] = {
+				'date_uploaded': metadata.timestamp,
+				'uploader': metadata.uploader,
+			};
+			(dirName && !ehDownloadRegex.slashOnly.test(dirName) ? zip.folder(dirName) : zip).file('info.json', JSON.stringify(output_json));
 		}
 	}
 
@@ -1943,6 +1948,7 @@ function initEHDownload() {
 		'gid': unsafeWindow.gid,
 		'token': unsafeWindow.token,
 		'site': window.location.host.indexOf('exhentai') ? 'exhentai' : 'e-hentai',
+		'timestamp': Date.now(),
 	};
 	fetchPagesXHR.abort();
 
@@ -2031,7 +2037,6 @@ function initEHDownload() {
 			window.location.href + '\n\n'
 		);
 		infoStr += title;
-
 	}
 
 	if (infoNeeds.indexOf('metas') >= 0) {
