@@ -3,6 +3,7 @@ var zip;
 var imageList = [];
 var imageData = [];
 var infoStr;
+let metadata = {};
 var origin = window.location.origin;
 var setting = null;
 var fetchCount = 0;
@@ -567,6 +568,8 @@ function generateZip(isFromFS, fs, isRetry, forced){
 
 		if (setting['save-info'] === 'file' || !setting['save-info']) {
 			(dirName && !ehDownloadRegex.slashOnly.test(dirName) ? zip.folder(dirName) : zip).file('info.txt', infoStr.replace(/\n/gi, '\r\n'));
+		} else if (setting['save-info'] === 'eze-json') {
+			(dirName && !ehDownloadRegex.slashOnly.test(dirName) ? zip.folder(dirName) : zip).file('info.json', JSON.stringify({'gallery_info': metadata}));
 		}
 	}
 
@@ -1936,6 +1939,11 @@ function initEHDownload() {
 	isPausing = false;
 	zip = new JSZip();
 	infoStr = '';
+	metadata['source'] = {
+		'gid': unsafeWindow.gid,
+		'token': unsafeWindow.token,
+		'site': window.location.host.indexOf('exhentai') ? 'exhentai' : 'e-hentai',
+	};
 	fetchPagesXHR.abort();
 
 	if (setting['recheck-file-name']) {
@@ -1960,6 +1968,7 @@ function initEHDownload() {
 		dirName = getReplacedName(!setting['dir-name'] ? '{gid}_{token}' : setting['dir-name']);
 		fileName = getReplacedName(!setting['file-name'] ? '{title}' : setting['file-name']);
 	}
+	metadata['title'] = fileName;
 
 	if (dirName.trim() === '/') dirName = '';
 	needNumberImages = ehDownloadNumberInput.querySelector('input').checked;
@@ -2016,16 +2025,22 @@ function initEHDownload() {
 	// Array.prototype.some() is a bit ugly, so we use toString().indexOf() lol
 	var infoNeeds = setting['save-info-list'].toString();
 	if (infoNeeds.indexOf('title') >= 0) {
-		infoStr += replaceHTMLEntites(
+		const title = replaceHTMLEntites(
 			document.getElementById('gn').textContent + '\n' +
 			document.getElementById('gj').textContent + '\n' +
 			window.location.href + '\n\n'
 		);
+		infoStr += title;
+
 	}
 
 	if (infoNeeds.indexOf('metas') >= 0) {
-		infoStr += 'Category: ' + document.querySelector('#gdc .cs').textContent.trim() + '\n' +
-				   'Uploader: ' + replaceHTMLEntites(document.querySelector('#gdn').textContent) + '\n';
+		const uploader = replaceHTMLEntites(document.querySelector('#gdn').textContent);
+		const category = document.querySelector('#gdc .cs').textContent.trim();
+		infoStr += 'Category: ' + category + '\n' +
+				   'Uploader: ' + uploader + '\n';
+		metadata['uploader'] = uploader;
+		metadata['category'] = category;
 	}
 	var metaNodes = document.querySelectorAll('#gdd tr');
 	for (var i = 0; i < metaNodes.length; i++) {
@@ -2036,17 +2051,21 @@ function initEHDownload() {
 	if (infoNeeds.indexOf('metas') >= 0) infoStr += 'Rating: ' + unsafeWindow.average_rating + '\n\n';
 
 	if (infoNeeds.indexOf('tags') >= 0) {
+		metadata['tags'] = {};
 		infoStr += 'Tags:\n';
 
 		var tagsList = document.querySelectorAll('#taglist tr');
 		Array.prototype.forEach.call(tagsList, function(elem){
+			let ns_tags = [];
 			var tds = elem.getElementsByTagName('td');
 			infoStr += '> ' + tds[0].textContent + ' ';
 
 			var tags = tds[1].querySelectorAll('a');
 			infoStr += Array.prototype.map.call(tags, function(e){
+				ns_tags.push(e.textContent);
 				return e.textContent;
 			}).join(', ') + '\n';
+			metadata['tags'][tds[0].textContent] = ns_tags;
 		});
 
 		infoStr += '\n';
@@ -2458,7 +2477,7 @@ function showSettings() {
 					<div class="g2"><label><input type="checkbox" data-ehd-setting="never-warn-large-gallery"> Never show warning when downloading a large gallery (>= 300 MB) </label></div>\
 					<div class="g2"' + (requestFileSystem ? '' : ' style="opacity: 0.5;" title="Only Chrome supports this feature"') + '><label><input type="checkbox" data-ehd-setting="store-in-fs"> Use File System to handle large Zip file</label> <label>when gallery is larger than <input type="number" data-ehd-setting="fs-size" min="0" placeholder="200" style="width: 46px;"> MB (0 is always)</label><sup>(4)</sup></div>\
 					<div class="g2"><label><input type="checkbox" data-ehd-setting="play-silent-music"> Play silent music during the process to avoid downloading freeze </label><sup>(5)</sup></div>\
-					<div class="g2"><label>Record and save gallery info as <select data-ehd-setting="save-info"><option value="file">File info.txt</option><option value="comment">Zip comment</option><option value="none">None</option></select></label></div>\
+					<div class="g2"><label>Record and save gallery info as <select data-ehd-setting="save-info"><option value="eze-json">eze-style json</option><option value="file">File info.txt</option><option value="comment">Zip comment</option><option value="none">None</option></select></label></div>\
 					<div class="g2">...which includes <label><input type="checkbox" data-ehd-setting="save-info-list[]" value="title">Title & Gallery Link</label> <label><input type="checkbox" data-ehd-setting="save-info-list[]" value="metas">Metadatas</label> <label><input type="checkbox" data-ehd-setting="save-info-list[]" value="tags">Tags</label> <label><input type="checkbox" data-ehd-setting="save-info-list[]" value="uploader-comment">Uploader Comment</label> <label><input type="checkbox" data-ehd-setting="save-info-list[]" value="page-links">Page Links</label></div>\
 					<div class="g2"><label><input type="checkbox" data-ehd-setting="replace-with-full-width"> Replace forbidden characters with full-width characters instead of dash (-)</label></div>\
 					<div class="g2"><label><input type="checkbox" data-ehd-setting="force-pause"> Force drop downloaded images data when pausing download</label></div>\
